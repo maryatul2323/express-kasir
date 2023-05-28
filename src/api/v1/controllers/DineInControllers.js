@@ -1,4 +1,3 @@
-
 const DataCustomerModel = require("../models/DataCustomerModel");
 const DataCheckoutModel = require("../models/DataCheckoutModel");
 const DataMejaModel = require("../models/DataMejaModel");
@@ -90,6 +89,7 @@ const addProduct = async (req, res) => {
         })
     }
 }
+
 
 //update jika ingin menambahkan jumlah produk(misalnya mi rebus 2-menjadi 3)
 //method put->body raw
@@ -190,8 +190,10 @@ const addCheckout = async (req, res) => {
             where : {user_create : res.locals.userId, id_customer:cust},
             order: [ [ 'createdAt', 'DESC' ]]
         });
+
         var result = JSON.parse(JSON.stringify(keranjang)).reduce((x,y) => x + Number.parseFloat(y.harga), 0);
         var values = JSON.stringify(Object.values(keranjang.map(function(elem){return elem.id}))); 
+
         let data = {user_create: res.locals.userId, total:result,id_pemesanan:values};
         const model = await DataCheckoutModel.create(data, { validate: true });
         if(!model) throw model;
@@ -199,7 +201,7 @@ const addCheckout = async (req, res) => {
         res.status(200).json({
             code:1,
             message: "Berhasil checkout data pesanan",
-            data: model,
+            data: values,
         }) 
  
     }catch(err){
@@ -216,6 +218,7 @@ const addCheckout = async (req, res) => {
 
 const getHistory = async (req, res) => {
     try {
+        var arr = [];
         //ambil nilai id_pemesanan di checkout
         const history = await DataCheckoutModel.findAll({    
             where : {user_create : res.locals.userId},
@@ -223,13 +226,27 @@ const getHistory = async (req, res) => {
 
         });
         var idCheckout=Object.values(history.map(function(elem){return elem.id_checkout}));
+
         for (i=0; i<idCheckout.length; i++){
-            let history2 = await DataCheckoutModel.findOne({    
+            let checkout = await DataCheckoutModel.findOne({    
                 where : { id_checkout : idCheckout[i] },
                 order: [ [ 'createdAt', 'DESC' ]]
             });
-            var salahSatuId=JSON.parse(history2.id_pemesanan);
+
+            var salahSatuId=JSON.parse(checkout.id_pemesanan);
             var salahSatu=salahSatuId[0]; 
+            var arrPesanan = [];
+            for (a=0; a<salahSatuId.length; a++){
+                var satu=salahSatuId[a]; 
+                let semuaPemesanan = await DataPemesananModel.findOne({
+                    where : {id:satu},
+                    attributes:["harga"]
+                });
+                arrPesanan.push(semuaPemesanan)
+            };
+            
+            var result = JSON.parse(JSON.stringify(arrPesanan)).reduce((x,y) => x + Number.parseFloat(y.harga), 0);
+            
             let pesan = await DataPemesananModel.findOne({
                 where : {id:salahSatu},
             });
@@ -250,11 +267,92 @@ const getHistory = async (req, res) => {
             where : {id_meja:idMeja},
             attributes: ["nama_meja"]
             });
-            let data = {history2,pesan,product,customer,meja};
-            res.write(JSON.stringify(data));
+            if ( meja == null){
+                var nama_meja ="Takeaway";
+            } else {
+                var nama_meja ="Meja :"+meja.nama_meja;
+            }
+            let data = {checkout,pesan,product,customer,result,nama_meja};
+            obj = JSON.parse(JSON.stringify(data));
+            arr.push(obj)
+
             
         };
-        res.end();
+        res.send({
+            status: "success",
+            data: arr
+        });
+        
+        //res.end();
+
+    } catch (error) {
+        res.json({ message: error.message });
+    }  
+}
+
+//menampilkan semua data pemesanan yang user_create:res.local.userId
+//method GET
+//localhost:3001/dinein/historyPesanan
+
+const getHistoryPesanan = async (req, res) => {
+    try {
+        var arr = [];            var pesanan = [];
+        //ambil nilai id_pemesanan di checkout
+        const history = await DataCheckoutModel.findAll({    
+            where : {user_create : res.locals.userId},
+            order: [ [ 'createdAt', 'DESC' ]]
+
+        });
+        var idCheckout=Object.values(history.map(function(elem){return elem.id_checkout}));
+
+    for (i=0; i<idCheckout.length;i++){
+            let checkout = await DataCheckoutModel.findOne({    
+                where : { id_checkout : idCheckout[i] },
+                order: [ [ 'createdAt', 'DESC' ]]
+            });
+            var salahSatuId=JSON.parse(checkout.id_pemesanan);
+
+        for (a=0; a<salahSatuId.length; a++){
+            var salahSatu=salahSatuId[a]; 
+            let pesan = await DataPemesananModel.findOne({
+                where : {id:salahSatu},
+            });
+            var idProduct = pesan.id_product;
+            let product = await ProductModel.findOne({
+                where : {id:idProduct},
+                attributes:["name","image","price"]
+            });
+            productImage= process.env.FILE_PATH + product.image;
+            product ={product,productImage}
+            var idCustomer= pesan.id_customer;
+            let customer = await DataCustomerModel.findOne({
+                where : {id:idCustomer},
+                attributes:["nama_customer","id_meja"]
+            });
+
+            var idMeja = customer.id_meja;
+            let meja = await DataMejaModel.findOne({
+            where : {id_meja:idMeja},
+            attributes: ["nama_meja"]
+            });
+            if ( meja == null){
+                var nama_meja ="Takeaway";
+            } else {
+                var nama_meja ="Meja : "+meja.nama_meja;
+            }
+            let dataProduk = {pesan,product,customer,nama_meja}
+            produkArr = JSON.parse(JSON.stringify(dataProduk))
+            pesanan.push(produkArr)
+        
+        }
+            let data = {checkout,pesanan}
+            obj = JSON.parse(JSON.stringify(data))
+            arr.push(obj)
+    };
+        res.send({
+            status: "success",
+            data: arr
+        });
 
     } catch (error) {
         res.json({ message: error.message });
@@ -265,7 +363,6 @@ const getHistory = async (req, res) => {
 //localhost:3001/dinein/checkout/id
 const detailCheckout = async (req, res) => {
     try{
-
         //pilih id checkout dengan param
         var cekout = await DataCheckoutModel.findOne({
             where : {id_checkout:req.params.id},
@@ -277,6 +374,7 @@ const detailCheckout = async (req, res) => {
             where : {id:salahSatu},
             attributes:["id_customer"]
         });
+    
         var idCustomer = pesan.id_customer;
         let model = await DataPemesananModel.findAll({
             where : {id_customer:idCustomer},
@@ -290,9 +388,22 @@ const detailCheckout = async (req, res) => {
                 }
             ],
         });
+        let nama_customer = await DataCustomerModel.findOne({
+            where :{id:idCustomer},
+            attributes:["nama_customer","id_meja"]
+        });
         model = JSON.parse(JSON.stringify(model));
-
-        model= model.map((item) => {
+            var idMeja = nama_customer.id_meja;
+            let meja = await DataMejaModel.findOne({
+            where : {id_meja:idMeja},
+            attributes: ["nama_meja"]
+            });
+            if ( meja == null){
+                var nama_meja ="Takeaway";
+            } else {
+                var nama_meja ="Meja : "+meja.nama_meja;
+            }
+        data= model.map((item) => {
             return {
                 ...item,
                 products: {
@@ -302,8 +413,8 @@ const detailCheckout = async (req, res) => {
             };
         });
         var totalHarga = JSON.parse(JSON.stringify(model)).reduce((x,y) => x + Number.parseFloat(y.harga), 0);
-        let data={model,totalHarga};
-        res.json(data);
+        let data1={data,totalHarga,nama_customer,nama_meja};
+        res.json(data1);
 
     } catch (error) {
         res.json({ message: error.message });
@@ -361,5 +472,30 @@ const updateCheckout = async (req, res)=>{
     }
 }
 
-module.exports = {postCustomer, addProduct, getKeranjang, update, addCheckout, getHistory, detailCheckout, updateCheckout, Test };
+const addBulkProduct = async (res, req) => {
+    try {
+      const cartItems = req.body.cartItems; 
+      const terbaruCustomer = await DataCustomerModel.findOne({
+        limit: 1,
+        attributes: ['id'],
+        order: [['createdAt', 'DESC']]
+      });
+  
+      for (const item of cartItems) {
+        await DataPemesananModel.create({
+          id_customer: terbaruCustomer.id,
+          user_create: res.locals.userId,
+          id_product: item.id_product,
+          jumlah_pemesanan: item.jumlah_pemesanan,
+          harga: item.harga 
+        });
+      }
+  
+      res.sendStatus(200);
+    } catch (error) {
+      res.sendStatus(500);
+    }
+  };
+
+module.exports = {postCustomer, addBulkProduct, addProduct, getKeranjang, update, addCheckout, getHistory,getHistoryPesanan, detailCheckout, updateCheckout, Test };
 

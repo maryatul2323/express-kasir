@@ -194,8 +194,18 @@ const update = async (req, res)=>{
 //localhost:3001/products/type/20d2c405-c07c-4dcc-bed6-6eefba0b930e
 const getType = async (req, res) => {
     try {
-        const products = await ProductModel.findAll({where : {typeId : req.params.typeId},include: [{model: ProductBrandModel,as: 'id_merek',},{model: ProductTypeModel,as: 'id_jenis',},]});
-        res.json(products);
+        let data = await ProductModel.findAll({where : {typeId : req.params.typeId},include: [{model: ProductBrandModel,as: 'id_merek',},{model: ProductTypeModel,as: 'id_jenis',},]});
+        data = JSON.parse(JSON.stringify(data))
+        data = data.map((item) => {
+        return {
+            ...item,
+            image: process.env.FILE_PATH + item.image,
+        }
+        });
+        res.send({
+            status: "success...",
+            data,
+        });
     } catch (error) {
         res.json({ message: error.message });
     }  

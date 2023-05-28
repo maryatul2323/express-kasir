@@ -105,26 +105,76 @@ const deleteOne = async function(req, res){
     }
 }
 
-const update = async (req, res)=>{
+const update = async (req, res) => {
+    try{
+        const model = await UserModel.update(req.body, { where: { id: req.params.id } });
+        if(!model) throw model;
+        res.status(200).json({
+            code:1,
+            message: "Successfully update user",
+            data: {
+                meta: {
+                    model: 'User',
+                    page: 1,
+                    total: model[0],
+                }
+            }
+        })
+    }catch(err){
+        res.status(500).json({
+            code: -1,
+            message: "Error server",
+            data: err
+        })
+    }
+}
 
+const updateProfile = async (req, res) => {
+    try{
+        const model = await UserModel.update(req.body, { where: { id: res.locals.userId } });
+        if(!model) throw model;
+        res.status(200).json({
+            code:1,
+            message: "Successfully update user profile",
+            data: {
+                meta: {
+                    model: 'User',
+                    page: 1,
+                    total: model[0],
+                }
+            }
+        })
+    }catch(err){
+        res.status(500).json({
+            code: -1,
+            message: "Error server",
+            data: err
+        })
+    }
+}
+
+
+const updatePP = async (req, res)=>{
     try {
-        const newPass = await bcrypt.hash(req.body.password);
-        const data = { ...req.body, password: newPass };
-        const { id } = req.params;
+        const data = req.body;
+
         await UserModel.update(
             {
                 ...data,
-                image: req.file.filename
+                image: req.file.filename,
             },
 
             {
-                where: { id },
+                where: { id : res.locals.userId },
             },
         );
 
         res.send({
             status: "success",
-            message: `Update User id: ${id} finished`
+            message: `Update user profile pic success`,
+            data: {
+                image: req.file.filename,
+            }
         });
     } catch (error) {
         console.log(error);
@@ -134,4 +184,30 @@ const update = async (req, res)=>{
         });
     }
 }
-module.exports = { getAll, getOne, post, deleteOne, update };
+
+//get one based on id
+const profile = async (req,res) => {
+    try{
+    let idProfile = res.locals.userId;
+    let data = await UserModel.findOne({where : {id : idProfile}});
+    data = JSON.parse(JSON.stringify(data))
+
+    data = {
+        ...data,
+        image: process.env.FILE_PATH + data.image,
+    }
+    res.send({
+        status: "success",
+        data,
+    });
+    }catch(err){
+        res.status(500).json({
+            code: -1,
+            message: "Error",
+            data: err
+        })
+    }
+}
+
+
+module.exports = { getAll, getOne, post, deleteOne, update, profile, updateProfile, updatePP };

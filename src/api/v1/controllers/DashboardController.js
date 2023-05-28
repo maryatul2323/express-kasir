@@ -20,17 +20,26 @@ const getSearch = async (req, res) => {
 
         });
         data = JSON.parse(JSON.stringify(data))
-        data = {
-            ...data,
-            image: process.env.FILE_PATH + data.image,
-            }
-        res.send({
-            status: "success",
-            data,
-        });
-    } catch (error) {
-        res.json({ message: error.message });
-    }  
+    data = data.map((item) => {
+        return {
+            ...item,
+            image: process.env.FILE_PATH + item.image,
+        };
+    });
+
+    res.send({
+        status: "success...",
+        data,
+    });
+
+
+} catch (error) {
+    console.log(error);
+    res.send({
+        status: "failed",
+        message: "Server Error",
+    });
+}
 }
 
 //popular menu, menampilkan data produk yang populer
@@ -51,6 +60,7 @@ const getFrequent = async (req, res) => {
             exclude: ["createdAt", "updatedAt"],
         },
         order: [['jumlah_pemesanan', 'DESC']],
+        limit:7
     });
 
     data = JSON.parse(JSON.stringify(data));
@@ -79,4 +89,52 @@ const getFrequent = async (req, res) => {
     });
 }
 }
-module.exports = {getFrequent, getSearch};
+
+//popular menu, menampilkan data produk yang populer
+//localhost:3001/dashboard/slider
+const getSlider = async (req, res) => {
+    try{
+    let data = await DataPemesananModel.findAll({
+        include: [
+            {
+                model: ProductModel,
+                as: "products",
+                attributes: {
+                    exclude: ["createdAt", "updatedAt",],
+                },
+            }
+        ],
+        attributes: {
+            exclude: ["createdAt", "updatedAt"],
+        },
+        order: [['jumlah_pemesanan', 'DESC']],
+        limit:3
+    });
+
+    data = JSON.parse(JSON.stringify(data));
+
+    data = data.map((item) => {
+        return {
+            ...item,
+            products: {
+                ...item.products[0],
+                image: process.env.FILE_PATH + item.products[0].image,
+            },
+        };
+    });
+
+    res.send({
+        status: "success...",
+        data,
+    });
+
+
+} catch (error) {
+    console.log(error);
+    res.send({
+        status: "failed",
+        message: "Server Error",
+    });
+}
+}
+module.exports = {getFrequent, getSearch, getSlider};
